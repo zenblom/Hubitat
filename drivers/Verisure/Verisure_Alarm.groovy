@@ -177,13 +177,15 @@ def pollStatus() {
     try {
 		if (state.installationId) {
 			// get overview & then update devices
+            if (logEnable) log.debug "[Verisure] pollStatus: Skipping cookie & installationId"
 			getOverview()
 		} else if (state.sessionCookie) {
 			// get installationId, overview & then update devices
+            if (logEnable) log.debug "[Verisure] pollStatus: Skipping installationId"
 			getInstallations()
 		} else {
 			// get cookie, installationId, overview & then update devices
-			if (logEnable) log.debug "[Verisure] pollStatus: Fetch cookie"
+			if (logEnable) log.debug "[Verisure] pollStatus: Fetch cookie & InstallationId"
 			createCookie()
 			
 		}
@@ -202,15 +204,16 @@ def createCookie() {
 			],
 			contentType: "application/json"
 		]
-		asynchttpPost('handlePollResponse', params)	
+		asynchttpPost('handleCreateCookieResponse', params)	
 }
 
 def handleCreateCookieResponse(response, data) {
 	if (!checkResponse("handlePollResponse", response)) return
+    def responseJson = response.getJson()
 	state.sessionCookie = responseJson["cookie"]
 	if (logEnable) log.debug "[Verisure] pollStatus: Session cookie received."
 	
-	getInstalltions()
+	getInstallations()
 }
 
 def getInstallations() {
@@ -232,10 +235,6 @@ def getInstallations() {
 		getOverview()
     }
 
-}
-
-def handleInstallationsResponse(response, data) {
-	
 }
 
 def getOverview() {
@@ -281,11 +280,11 @@ def updateDevices(response, data) {
 
     def responseJson = response.getJson()
     if (logEnable) log.debug "[Verisure] updateDevices: $responseJson"
-    parseAlarmState(responseJson["armState"])
-    parseSensorResponse(responseJson["climateValues"])
-    parseSmartPlugResponse(response.json["smartPlugs"])
-    parseDoorWindowResponse(response.json["doorWindow"])
-    parseLockResponse(response.json["doorLockStatusList"])
+    if (responseJson["armState"]) parseAlarmState(responseJson["armState"])
+    if (responseJson["climateValues"]) parseSensorResponse(responseJson["climateValues"])
+    if (responseJson["smartPlugs"]) parseSmartPlugResponse(response.json["smartPlugs"])
+    if (responseJson["doorWindow"]) parseDoorWindowResponse(response.json["doorWindow"])
+    if (responseJson["doorLockStatusList"]) parseLockResponse(response.json["doorLockStatusList"])
 
     if (logEnable) log.debug "[Verisure] updateDevices: Overview response handled"
     if (logEnable) log.debug "[Verisure] transaction: ===== END_UPDATE"
@@ -299,11 +298,11 @@ def parseAlarmState(alarmState) {
     }
 
     if (logEnable) log.debug "[Verisure] parseAlarmState: Updating alarm device"
-	sendEvent(name: "status", value: alarmState.statusType)
-	sendEvent(name: "loggedBy", value: alarmState.name)
-	sendEvent(name: "loggedWhen", value: alarmState.date)
-	sendEvent(name: "lastUpdate", value: new Date().toLocaleString())
-	if (txtEnable) log.info "[Verisure] alarmDevice.updated: | Status: " + alarmState.statusType + " | LoggedBy: " + alarmState.name + " | LoggedWhen: " + alarmState.date
+    if (device.currentValue('status') != alarmState.statusType) sendEvent(name: "status", value: alarmState.statusType)
+	if (device.currentValue('loggedBy') != alarmState.name) sendEvent(name: "loggedBy", value: alarmState.name)
+	if (device.currentValue('loggedWhen') != alarmState.date) sendEvent(name: "loggedWhen", value: alarmState.date)
+	state.lastUpdate = new Date().toLocaleString()
+	if (txtEnable && device.currentValue('status') != alarmState.statusType) log.info "[Verisure] alarmDevice.updated: | Status: " + alarmState.statusType + " | LoggedBy: " + alarmState.name + " | LoggedWhen: " + alarmState.date
 
     if (alarmState.statusType != state.previousAlarmState) {
         if (logEnable) log.debug "[Verisure] updateAlarmState: State changed, execution actions"
@@ -333,11 +332,16 @@ def parseSensorResponse(climateState) {
 		
 		def existingDevice = getChildDevice(device.deviceLabel) // deviceNetworkId
 
-		if (txtEnable) log.info "[Verisure] climateDevice.updated: " + device.deviceArea + " | Humidity: " + humidityNumber + " | Temperature: " + tempNumber
-		existingDevice.sendEvent(name: "humidity", value: humidityNumber)
-		existingDevice.sendEvent(name: "timestamp", value: device.times)
-		existingDevice.sendEvent(name: "type", value: device.deviceType)
-		existingDevice.sendEvent(name: "temperature", value: tempNumber)
+		if (txtEnable && (
+            existingDevice.currentValue('humidity') != humidityNumber ||
+            existingDevice.currentValue('timestamp') != device.times ||
+            existingDevice.currentValue('type') != device.deviceType ||
+            existingDevice.currentValue('temperature') != tempNumber
+        )) log.info "[Verisure] climateDevice.updated: " + device.deviceArea + " | Humidity: " + humidityNumber + " | Temperature: " + tempNumber
+		if (existingDevice.currentValue('humidity') != humidityNumber) existingDevice.sendEvent(name: "humidity", value: humidityNumber)
+		if (existingDevice.currentValue('timestamp') != device.times) existingDevice.sendEvent(name: "timestamp", value: device.times)
+		if (existingDevice.currentValue('type') != device.deviceType) existingDevice.sendEvent(name: "type", value: device.deviceType)
+		if (existingDevice.currentValue('temperature') != tempNumber) existingDevice.sendEvent(name: "temperature", value: tempNumber)
     }
 }
 
@@ -358,9 +362,9 @@ def parseSmartPlugResponse(smartPlugState) {
          
 		def childDevice = getChildDevice(device.deviceLabel)
 
-        if (txtEnable) log.info "[Verisure] switchDevice.updated: " + device.area + " | State: " + device.currentState
-		childDevice.setLabel(device.area)
-        childDevice.sendEvent(name: "switch", value: switchString)		
+        if (txtEnable && childDevice.currentValue('switch') != switchString) log.info "[Verisure] switchDevice.updated: " + device.area + " | State: " + device.currentState
+		if (childDevice.getLabel() != device.area) childDevice.setLabel(device.area)
+        if (childDevice.currentValue('switch') != switchString) childDevice.sendEvent(name: "switch", value: switchString)		
     }
 }
 
@@ -381,10 +385,12 @@ def parseDoorWindowResponse(doorWindowState) {
         } else {
             def childDevice = getChildDevice(device.deviceLabel)
 	
-            if (txtEnable) log.info "[Verisure] contactDevice.updated: " + device.area + " | State: " + device.state
-			childDevice.setLabel(device.area)
-            childDevice.sendEvent(name: "contact", value: contactString)
-            childDevice.sendEvent(name: "timestamp", value: device.reportTime)
+            if (txtEnable && 
+                childDevice.currentValue('contact') != contactString &&
+                childDevice.currentValue('timestamp') != device.reportTime) log.info "[Verisure] contactDevice.updated: " + device.area + " | State: " + device.state
+			if (childDevice.getLabel() != device.area) childDevice.setLabel(device.area)
+            if (childDevice.currentValue('contact') != contactString) childDevice.sendEvent(name: "contact", value: contactString)
+            if (childDevice.currentValue('timestamp') != device.reportTime) childDevice.sendEvent(name: "timestamp", value: device.reportTime)
         }
     }
 }
@@ -406,18 +412,18 @@ def parseLockResponse(lockState) {
          
 		def childDevice = getChildDevice(device.deviceLabel)
 
-        if (txtEnable) log.info "[Verisure] lockDevice.updated: " + device.area + " | State: " + device.currentLockState
+        if (txtEnable && childDevice.currentValue('lock') != device.lockedState.toLowerCase()) log.info "[Verisure] lockDevice.updated: " + device.area + " | State: " + device.currentLockState
 		childDevice.setLabel(device.area)
 		//lock - ENUM ["locked", "unlocked with timeout", "unlocked", "unknown"]
 		switch (device.lockedState) {
 			case "UNLOCKED":
-				childDevice.sendEvent(name: "lock", value: "unlocked")
+				if (childDevice.currentValue('lock') != "unlocked") childDevice.sendEvent(name: "lock", value: "unlocked")
 				break
 			case "LOCKED":
-				childDevice.sendEvent(name: "lock", value: "locked")
+				if (childDevice.currentValue('lock') != "locked") childDevice.sendEvent(name: "lock", value: "locked")
 				break
 			default:
-				childDevice.sendEvent(name: "lock", value: "unknown")
+				if (childDevice.currentValue('lock') != "unknown") childDevice.sendEvent(name: "lock", value: "unknown")
 				break
 		}
     }
