@@ -32,6 +32,8 @@ metadata {
     definition(name: "Verisure Door/Window Sensor", namespace: "zenblom", author: "Martin Blomgren") {
         capability "Sensor"
         capability "Contact Sensor"
+
+        attribute "timestamp", "Date"
     }
 }
 
@@ -40,6 +42,7 @@ def parse(String description) {
     //log.debug('[device.currentValue("contact")] ' + device.currentValue("contact"))
 
     def evnt01 = createEvent(name: "contact", value: device.currentValue("contact"))
+    def evnt02 = createEvent(name: "timestamp", value: device.currentValue("timestamp"))
 
-    return evnt01
+    return [evnt01, evnt02]
 }
