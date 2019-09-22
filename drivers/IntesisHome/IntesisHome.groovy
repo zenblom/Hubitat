@@ -188,7 +188,7 @@ def connect() {
 	    connectionMade()
     } else {
         //Get connection details
-        pollStatus
+        pollStatus()
     }
 }
 
