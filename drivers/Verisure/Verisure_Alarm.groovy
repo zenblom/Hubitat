@@ -1,5 +1,5 @@
 /**
- *  Verisue Alarm 0.2
+ *  Verisue Alarm 0.2.1
  *
  *  Author: 
  *    Martin Blomgren
@@ -9,6 +9,8 @@
  * And of course Per Sandström for the massive work with the Python Verisure module
  * (https://github.com/persandstrom/python-verisure)
  *
+ *    0.2.1 (February 14 2020)
+ *      - Added Actuator Capability to be able to use custom RM
  *    0.2 (February 3 2020)
  *      - Added support for arm home/arm away/disarm
  *    0.1 (June 6 2019)
@@ -43,10 +45,11 @@
  */
 import java.net.URLEncoder
 
-def version() {"v0.2"}
+def version() {"v0.2.1"}
 
 metadata {
     definition (name: "Verisure Alarm", namespace: "zenblom", author: "Martin Blomgren") {
+        capability "Actuator"
         capability "Initialize"
         capability "SecurityKeypad" // securityKeypad - ENUM ["disarmed", "armed home", "armed away", "unknown"]
         
@@ -169,7 +172,7 @@ def pollStatus() {
     state.disarmedAction = disarmedAction ? disarmedAction : unarmedAction
 
     // Handling some parameter setup, copying from settings to enable programmatically changing them
-    state.app_version = "0.2"
+    state.app_version = "0.2.1"
 
     if (logEnable) log.debug "[Verisure] checkPeriodically: Periodic check from timer"
     if (enabled != null && !enabled) {
