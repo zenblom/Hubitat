@@ -1,5 +1,5 @@
 /**
- *  Verisue Alarm 0.1
+ *  Verisue Alarm 0.2.1
  *
  *  Author: 
  *    Martin Blomgren
@@ -9,6 +9,10 @@
  * And of course Per Sandström for the massive work with the Python Verisure module
  * (https://github.com/persandstrom/python-verisure)
  *
+ *    0.2.1 (February 14 2020)
+ *      - Added Actuator Capability to be able to use custom RM
+ *    0.2 (February 3 2020)
+ *      - Added support for arm home/arm away/disarm
  *    0.1 (June 6 2019)
  *      - Initial Release
  *      - Support for ONE installation
@@ -19,7 +23,7 @@
  *          Smartplug, 
  *          Temperature Sensor
  *
- * Copyright (c) 2019 
+ * Copyright (c) 2020
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,28 +45,28 @@
  */
 import java.net.URLEncoder
 
-def version() {"v0.1"}
+def version() {"v0.2.1"}
 
 metadata {
     definition (name: "Verisure Alarm", namespace: "zenblom", author: "Martin Blomgren") {
-		capability "Initialize"
-		capability "SecurityKeypad"
-		
-		attribute "device.status", "string"
-		attribute "armaway", "string"
-		attribute "armhome", "string"
-		attribute "disarm", "string"
-		attribute "alarm", "enum"
-		attribute "lastaction", "string"
-		
+        capability "Actuator"
+        capability "Initialize"
+        capability "SecurityKeypad" // securityKeypad - ENUM ["disarmed", "armed home", "armed away", "unknown"]
+        
+        attribute "device.status", "string"
+        attribute "armaway", "string"
+        attribute "armhome", "string"
+        attribute "disarm", "string"
+        attribute "alarm", "enum"
+        attribute "lastaction", "string"
+        
         attribute "status", "string"
         attribute "loggedBy", "string"
         attribute "loggedWhen", "Date"
-		
-		//command "clearInstallationCache"
-		
+        
+        //command "testStuff"
     }
-	
+    
     preferences {
         section("Disable updating (polling) here") {
             input "enabled", "bool", defaultValue: "true", title: "Enabled?"
@@ -89,6 +93,10 @@ metadata {
     }
 }
 
+def testStuff() {
+    log.trace "${device}"   
+}
+
 // --- Hubitat lifecycle
 def logsOff(){
     log.warn "debug logging disabled..."
@@ -104,7 +112,8 @@ def updated() {
     log.warn "debug logging is: ${logEnable == true}"
     log.warn "description logging is: ${txtEnable == true}"
     if (logEnable) runIn(1800,logsOff)
-
+    state.namePrefix = namePrefix + " "
+    
     unschedule()
     initialize()
 }
@@ -126,17 +135,17 @@ def initialize() {
 // --- Getters
 
 def getBaseUrl() {
-	if (state.serverUrl == null) {
-    	switchBaseUrl()
+    if (state.serverUrl == null) {
+        switchBaseUrl()
     }
     return state.serverUrl
 }
 
 def switchBaseUrl() {
-	if (state.serverUrl == "https://e-api01.verisure.com/xbn/2") {
-    	state.serverUrl = "https://e-api02.verisure.com/xbn/2"
+    if (state.serverUrl == "https://e-api01.verisure.com/xbn/2") {
+        state.serverUrl = "https://e-api02.verisure.com/xbn/2"
     } else {
-    	state.serverUrl = "https://e-api01.verisure.com/xbn/2"
+        state.serverUrl = "https://e-api01.verisure.com/xbn/2"
     }
     if (logEnable) log.debug "[Verisure] switchBaseUrl: Base url switched to ${state.serverUrl}"
 }
@@ -152,8 +161,8 @@ def getAlarmState() {
 
 // -- Fetching data from Verisure
 def clearInstallationCache() {
-	state.sessionCookie = null
-	state.installationId = null
+    state.sessionCookie = null
+    state.installationId = null
 }
 
 def pollStatus() {
@@ -163,7 +172,7 @@ def pollStatus() {
     state.disarmedAction = disarmedAction ? disarmedAction : unarmedAction
 
     // Handling some parameter setup, copying from settings to enable programmatically changing them
-    state.app_version = "0.1"
+    state.app_version = "0.2.1"
 
     if (logEnable) log.debug "[Verisure] checkPeriodically: Periodic check from timer"
     if (enabled != null && !enabled) {
@@ -175,93 +184,93 @@ def pollStatus() {
         return
     }
     try {
-		if (state.installationId) {
-			// get overview & then update devices
+        if (state.installationId) {
+            // get overview & then update devices
             if (logEnable) log.debug "[Verisure] pollStatus: Skipping cookie & installationId"
-			getOverview()
-		} else if (state.sessionCookie) {
-			// get installationId, overview & then update devices
+            getOverview()
+        } else if (state.sessionCookie) {
+            // get installationId, overview & then update devices
             if (logEnable) log.debug "[Verisure] pollStatus: Skipping installationId"
-			getInstallations()
-		} else {
-			// get cookie, installationId, overview & then update devices
-			if (logEnable) log.debug "[Verisure] pollStatus: Fetch cookie & InstallationId"
-			createCookie()
-			
-		}
-		
+            getInstallations()
+        } else {
+            // get cookie, installationId, overview & then update devices
+            if (logEnable) log.debug "[Verisure] pollStatus: Fetch cookie & InstallationId"
+            createCookie()
+            
+        }
+        
     } catch (Exception e) {
         log.warn "pollStatus: Error updating alarm state $e"
     }
 }
 
 def createCookie() {
-		def params = [
-			uri        : getBaseUrl() + "/cookie",
-			headers    : [
-				requestContentType: "application/json",
-				Authorization: "Basic " + ("CPE/" + username + ":" + password).bytes.encodeBase64(),
-			],
-			contentType: "application/json"
-		]
-		asynchttpPost('handleCreateCookieResponse', params)	
+        def params = [
+            uri        : getBaseUrl() + "/cookie",
+            headers    : [
+                requestContentType: "application/json",
+                Authorization: "Basic " + ("CPE/" + username + ":" + password).bytes.encodeBase64(),
+            ],
+            contentType: "application/json"
+        ]
+        asynchttpPost('handleCreateCookieResponse', params)    
 }
 
 def handleCreateCookieResponse(response, data) {
-	if (!checkResponse("handlePollResponse", response)) return
+    if (!checkResponse("handlePollResponse", response)) return
     def responseJson = response.getJson()
-	state.sessionCookie = responseJson["cookie"]
-	if (logEnable) log.debug "[Verisure] pollStatus: Session cookie received."
-	
-	getInstallations()
+    state.sessionCookie = responseJson["cookie"]
+    if (logEnable) log.debug "[Verisure] pollStatus: Session cookie received."
+    
+    getInstallations()
 }
 
 def getInstallations() {
-	// Get the Installtion Id
+    // Get the Installtion Id
     if (logEnable) log.debug "[Verisure] getInstallations: Finding installation"
     def params = [
-		uri : getBaseUrl() + "/installation/search?email=" + URLEncoder.encode(username),
+        uri : getBaseUrl() + "/installation/search?email=" + URLEncoder.encode(username),
         contentType: "application/json",
         headers : [
-			requestContentType: "application/json",
+            requestContentType: "application/json",
             Cookie: "vid=" + state.sessionCookie
-		]
+        ]
     ]
 
     httpGet(params) { installationResponse ->
-		state.installationId = installationResponse.data[0]["giid"]
+        state.installationId = installationResponse.data[0]["giid"]
         if (logEnable) log.debug "[Verisure] getInstallationId: Found installation id $installationId"
-		
-		getOverview()
+        
+        getOverview()
     }
 
 }
 
 def getOverview() {
-		// Get the Overview Status for all devices
-		if (logEnable) log.debug "[Verisure] handlePollResponse: Fetching overview"
-		def paramsOverview = [
-			uri        : getBaseUrl() + "/installation/" + state.installationId + "/overview",
-			contentType: "application/json",
-			headers    : [
-				requestContentType: "application/json",
-				Cookie: "vid=" + state.sessionCookie
-			]
-		]
+        // Get the Overview Status for all devices
+        if (logEnable) log.debug "[Verisure] handlePollResponse: Fetching overview"
+        def paramsOverview = [
+            uri        : getBaseUrl() + "/installation/" + state.installationId + "/overview",
+            contentType: "application/json",
+            headers    : [
+                requestContentType: "application/json",
+                Cookie: "vid=" + state.sessionCookie
+            ]
+        ]
 
-		asynchttpGet('updateDevices', paramsOverview)	
+        asynchttpGet('updateDevices', paramsOverview)    
 }
 
 // --- Response handlers for async http
 def checkResponse(context, response) {
     if (response.hasError() || response.getStatus() != 200) {
-		state.latestError = new Date().toLocaleString()
+        state.latestError = new Date().toLocaleString()
         log.warn "[Verisure] $context : Did not get correct response. Got response ${response.getErrorData()} "
         if (response.hasError()) {
             if (response.getErrorData().contains("Request limit has been reached")) {
                 state.throttleCounter = 2
             } else if (response.getErrorData().contains("XBN Database is not activated")) {
-            	switchBaseUrl()
+                switchBaseUrl()
             }
             if (logEnable) log.debug "[Verisure] Response has error: " + response.getErrorData()
         } else {
@@ -293,16 +302,28 @@ def updateDevices(response, data) {
 // --- Parse responses to Hubitat child devices
 
 def parseAlarmState(alarmState) {
+    //securityKeypad - ENUM ["disarmed", "armed home", "armed away", "unknown"]
     if (state.previousAlarmState == null) {
         state.previousAlarmState = alarmState.statusType
     }
-
+    
     if (logEnable) log.debug "[Verisure] parseAlarmState: Updating alarm device"
+    switch (alarmState.statusType) {
+        case "ARMED_HOME":
+            if (device.currentValue('securityKeypad') != "armed home") sendEvent(name: "securityKeypad", value: "armed home")
+            break
+        case "ARMED_AWAY":
+            if (device.currentValue('securityKeypad') != "armed away") sendEvent(name: "securityKeypad", value: "armed away")
+            break
+        case "DISARMED":
+            if (device.currentValue('securityKeypad') != "disarmed") sendEvent(name: "securityKeypad", value: "disarmed")
+            break
+    }    
     if (device.currentValue('status') != alarmState.statusType) sendEvent(name: "status", value: alarmState.statusType)
-	if (device.currentValue('loggedBy') != alarmState.name) sendEvent(name: "loggedBy", value: alarmState.name)
-	if (device.currentValue('loggedWhen') != alarmState.date) sendEvent(name: "loggedWhen", value: alarmState.date)
-	state.lastUpdate = new Date().toLocaleString()
-	if (txtEnable && device.currentValue('status') != alarmState.statusType) log.info "[Verisure] alarmDevice.updated: | Status: " + alarmState.statusType + " | LoggedBy: " + alarmState.name + " | LoggedWhen: " + alarmState.date
+    if (device.currentValue('loggedBy') != alarmState.name) sendEvent(name: "loggedBy", value: alarmState.name)
+    if (device.currentValue('loggedWhen') != alarmState.date) sendEvent(name: "loggedWhen", value: alarmState.date)
+    state.lastUpdate = new Date().toLocaleString()
+    if (txtEnable && device.currentValue('status') != alarmState.statusType) log.info "[Verisure] alarmDevice.updated: | Status: " + alarmState.statusType + " | LoggedBy: " + alarmState.name + " | LoggedWhen: " + alarmState.date
 
     if (alarmState.statusType != state.previousAlarmState) {
         if (logEnable) log.debug "[Verisure] updateAlarmState: State changed, execution actions"
@@ -321,27 +342,27 @@ def parseSensorResponse(climateState) {
         Double humidityNumber = device.humidity
 
         if (!hasChildDevice(device.deviceLabel)) {
-			//addChildDevice(String typeName, String deviceNetworkId, Map properties = [:])
+            //addChildDevice(String typeName, String deviceNetworkId, Map properties = [:])
             addChildDevice("Verisure Temperature Sensor", device.deviceLabel, [
-				isComponent: false, // true or false, if true, device will still show up in device list but will not be able to be deleted or edited in the UI. If false, device can be modified/deleted on the UI.
-				name : device.deviceType, // name of child device, if not specified, driver name is used. (driver name is used when pairing i.e. Zigbee devices)
-				label      : device.deviceArea // label of child device, if not specified it is left blank. (Actual name like Livingroom motion) 
+                isComponent: false, // true or false, if true, device will still show up in device list but will not be able to be deleted or edited in the UI. If false, device can be modified/deleted on the UI.
+                name : device.deviceType, // name of child device, if not specified, driver name is used. (driver name is used when pairing i.e. Zigbee devices)
+                label      : device.deviceArea // label of child device, if not specified it is left blank. (Actual name like Livingroom motion) 
             ])
-            if (txtEnable) log.info "[Verisure] climateDevice.create: " + device.toString()
+            if (txtEnable) log.info "[Verisure] climateDevice.created: " + device.toString()
         }
-		
-		def existingDevice = getChildDevice(device.deviceLabel) // deviceNetworkId
+        
+        def existingDevice = getChildDevice(device.deviceLabel) // deviceNetworkId
 
-		if (txtEnable && (
+        if (txtEnable && (
             existingDevice.currentValue('humidity') != humidityNumber ||
             existingDevice.currentValue('timestamp') != device.times ||
             existingDevice.currentValue('type') != device.deviceType ||
             existingDevice.currentValue('temperature') != tempNumber
         )) log.info "[Verisure] climateDevice.updated: " + device.deviceArea + " | Humidity: " + humidityNumber + " | Temperature: " + tempNumber
-		if (existingDevice.currentValue('humidity') != humidityNumber) existingDevice.sendEvent(name: "humidity", value: humidityNumber)
-		if (existingDevice.currentValue('timestamp') != device.times) existingDevice.sendEvent(name: "timestamp", value: device.times)
-		if (existingDevice.currentValue('type') != device.deviceType) existingDevice.sendEvent(name: "type", value: device.deviceType)
-		if (existingDevice.currentValue('temperature') != tempNumber) existingDevice.sendEvent(name: "temperature", value: tempNumber)
+        if (existingDevice.currentValue('humidity') != humidityNumber) existingDevice.sendEvent(name: "humidity", value: humidityNumber)
+        if (existingDevice.currentValue('timestamp') != device.times) existingDevice.sendEvent(name: "timestamp", value: device.times)
+        if (existingDevice.currentValue('type') != device.deviceType) existingDevice.sendEvent(name: "type", value: device.deviceType)
+        if (existingDevice.currentValue('temperature') != tempNumber) existingDevice.sendEvent(name: "temperature", value: tempNumber)
     }
 }
 
@@ -352,19 +373,19 @@ def parseSmartPlugResponse(smartPlugState) {
         String switchString = (device.currentState == "ON") ? "on" : "off"
         if (!hasChildDevice(device.deviceLabel)) {
             addChildDevice("Verisure Smartplug", device.deviceLabel, [
-				isComponent: false, // true or false, if true, device will still show up in device list but will not be able to be deleted or edited in the UI. If false, device can be modified/deleted on the UI.
-				name : device.deviceType, // name of child device, if not specified, driver name is used. (driver name is used when pairing i.e. Zigbee devices)
-				label      : device.area // label of child device, if not specified it is left blank. (Actual name like Livingroom motion) 
+                isComponent: false, // true or false, if true, device will still show up in device list but will not be able to be deleted or edited in the UI. If false, device can be modified/deleted on the UI.
+                name : device.deviceType, // name of child device, if not specified, driver name is used. (driver name is used when pairing i.e. Zigbee devices)
+                label      : device.area // label of child device, if not specified it is left blank. (Actual name like Livingroom motion) 
             ])
 
             if (txtEnable) log.info "[Verisure] switchDevice.created: " + device.toString()
         }
          
-		def childDevice = getChildDevice(device.deviceLabel)
+        def childDevice = getChildDevice(device.deviceLabel)
 
         if (txtEnable && childDevice.currentValue('switch') != switchString) log.info "[Verisure] switchDevice.updated: " + device.area + " | State: " + device.currentState
-		if (childDevice.getLabel() != device.area) childDevice.setLabel(device.area)
-        if (childDevice.currentValue('switch') != switchString) childDevice.sendEvent(name: "switch", value: switchString)		
+        if (childDevice.getLabel() != device.area) childDevice.setLabel(device.area)
+        if (childDevice.currentValue('switch') != switchString) childDevice.sendEvent(name: "switch", value: switchString)        
     }
 }
 
@@ -376,19 +397,19 @@ def parseDoorWindowResponse(doorWindowState) {
 
         if (!hasChildDevice(device.deviceLabel)) {
             addChildDevice("Verisure Door/Window Sensor", device.deviceLabel, [
-				isComponent: false, // true or false, if true, device will still show up in device list but will not be able to be deleted or edited in the UI. If false, device can be modified/deleted on the UI.
-				name : device.deviceType, // name of child device, if not specified, driver name is used. (driver name is used when pairing i.e. Zigbee devices)
-				label      : device.area // label of child device, if not specified it is left blank. (Actual name like Livingroom motion) 
+                isComponent: false, // true or false, if true, device will still show up in device list but will not be able to be deleted or edited in the UI. If false, device can be modified/deleted on the UI.
+                name : device.deviceType, // name of child device, if not specified, driver name is used. (driver name is used when pairing i.e. Zigbee devices)
+                label      : device.area // label of child device, if not specified it is left blank. (Actual name like Livingroom motion) 
             ])
 
             if (txtEnable) log.info "[Verisure] contactDevice.created: " + device.toString()
         } else {
             def childDevice = getChildDevice(device.deviceLabel)
-	
+    
             if (txtEnable && 
                 childDevice.currentValue('contact') != contactString &&
                 childDevice.currentValue('timestamp') != device.reportTime) log.info "[Verisure] contactDevice.updated: " + device.area + " | State: " + device.state
-			if (childDevice.getLabel() != device.area) childDevice.setLabel(device.area)
+            if (childDevice.getLabel() != device.area) childDevice.setLabel(device.area)
             if (childDevice.currentValue('contact') != contactString) childDevice.sendEvent(name: "contact", value: contactString)
             if (childDevice.currentValue('timestamp') != device.reportTime) childDevice.sendEvent(name: "timestamp", value: device.reportTime)
         }
@@ -402,35 +423,105 @@ def parseLockResponse(lockState) {
         //String String = (device.currentState == "ON") ? "on" : "off"
         if (!hasChildDevice(device.deviceLabel)) {
             addChildDevice("Verisure Lock", device.deviceLabel, [
-				isComponent: false, // true or false, if true, device will still show up in device list but will not be able to be deleted or edited in the UI. If false, device can be modified/deleted on the UI.
-				name: device.deviceType, // name of child device, if not specified, driver name is used. (driver name is used when pairing i.e. Zigbee devices)
-				label: device.area // label of child device, if not specified it is left blank. (Actual name like Livingroom motion) 
+                isComponent: false, // true or false, if true, device will still show up in device list but will not be able to be deleted or edited in the UI. If false, device can be modified/deleted on the UI.
+                name: device.deviceType, // name of child device, if not specified, driver name is used. (driver name is used when pairing i.e. Zigbee devices)
+                label: device.area // label of child device, if not specified it is left blank. (Actual name like Livingroom motion) 
             ])
 
             if (txtEnable) log.info "[Verisure] lockDevice.created: " + device.toString()
         }
          
-		def childDevice = getChildDevice(device.deviceLabel)
+        def childDevice = getChildDevice(device.deviceLabel)
 
         if (txtEnable && childDevice.currentValue('lock') != device.lockedState.toLowerCase()) log.info "[Verisure] lockDevice.updated: " + device.area + " | State: " + device.currentLockState
-		childDevice.setLabel(device.area)
-		//lock - ENUM ["locked", "unlocked with timeout", "unlocked", "unknown"]
-		switch (device.lockedState) {
-			case "UNLOCKED":
-				if (childDevice.currentValue('lock') != "unlocked") childDevice.sendEvent(name: "lock", value: "unlocked")
-				break
-			case "LOCKED":
-				if (childDevice.currentValue('lock') != "locked") childDevice.sendEvent(name: "lock", value: "locked")
-				break
-			default:
-				if (childDevice.currentValue('lock') != "unknown") childDevice.sendEvent(name: "lock", value: "unknown")
-				break
-		}
+        childDevice.setLabel(device.area)
+        //lock - ENUM ["locked", "unlocked with timeout", "unlocked", "unknown"]
+        switch (device.lockedState) {
+            case "UNLOCKED":
+                if (childDevice.currentValue('lock') != "unlocked") childDevice.sendEvent(name: "lock", value: "unlocked")
+                break
+            case "LOCKED":
+                if (childDevice.currentValue('lock') != "locked") childDevice.sendEvent(name: "lock", value: "locked")
+                break
+            default:
+                if (childDevice.currentValue('lock') != "unknown") childDevice.sendEvent(name: "lock", value: "unknown")
+                break
+        }
     }
 }
 
 
 // -- Setters for Child Devices
+
+def armAway() {
+    if (txtEnable) log.info "${device}: Arm Away"
+    if (logEnable) log.debug "[Verisure] armAway.event: Event from " + device + " with value armAway, session cookie: " + state.sessionCookie
+
+    setAlarm("ARMED_AWAY");
+}
+
+
+def armHome() {
+    if (txtEnable) log.info "${device}: Arm Home"
+    if (logEnable) log.debug "[Verisure] armHome.event: Event from " + device + " with value armHome, session cookie: " + state.sessionCookie
+    
+    setAlarm("ARMED_HOME");
+}
+
+def disarm() {
+    if (txtEnable) log.info "${device}: Disarm"
+    if (logEnable) log.debug "[Verisure] disarm.event: Event from " + device + " with value disarm, session cookie: " + state.sessionCookie
+    
+    setAlarm("DISARMED");
+}
+
+def setAlarm(String armState) {
+    def params = [
+        uri: getBaseUrl() + "/installation/" + state.installationId + "/armstate/code",
+        contentType: "application/json",
+        headers: [
+            requestContentType: "application/json",
+            Cookie: "vid=" + state.sessionCookie
+        ],
+        body: '{"state": "' + armState + '", "code": ' + code +'}'
+    ]
+    
+    asynchttpPut(handleArmStateResponse, params, ["device": device, "state": armState])
+}
+
+def handleArmStateResponse(response, data) {
+    def status = response.getStatus()
+    if (logEnable) log.debug "[Verisure] armStateHandlerResponse: $status"
+    if (logEnable) log.debug "[Verisure] armStateHandlerResponse: $data"
+    
+    if (status == 200) {
+        def responseData = response.getJson()
+        if (logEnable) log.debug "[Verisure] handleArmStateResponse: $responseData"
+        // [doorLockStateChangeTransactionId:150668366]
+
+        //securityKeypad - ENUM ["disarmed", "armed home", "armed away", "unknown"]
+    
+        if (logEnable) log.debug "[Verisure] handleArmStateResponse: Updating alarm device"
+        switch (data.state) {
+            case "ARMED_HOME":
+                if (device.currentValue('securityKeypad') != "armed home") sendEvent(name: "securityKeypad", value: "armed home")
+                break
+            case "ARMED_AWAY":
+                if (device.currentValue('securityKeypad') != "armed away") sendEvent(name: "securityKeypad", value: "armed away")
+                break
+            case "DISARMED":
+                if (device.currentValue('securityKeypad') != "disarmed") sendEvent(name: "securityKeypad", value: "disarmed")
+                break
+        }    
+        if (device.currentValue('status') != data.state) sendEvent(name: "status", value: data.state)
+
+    
+    } else if (status == 400) {
+        // <errorMessage>The requested alarm state is not possible to apply due to state already set</errorMessage>
+    }
+    
+}
+
 def smartPlugHandler(String deviceId) {
     def currentDevice = getChildDevice(deviceId)
 
@@ -439,74 +530,75 @@ def smartPlugHandler(String deviceId) {
     if (logEnable) log.debug "smartplug: Change state on ${deviceId} to ${switchState} on installtionId ${state.installationId}"
 
     def params = [
-    	uri: getBaseUrl() + "/installation/" + state.installationId + "/smartplug/state",
+        uri: getBaseUrl() + "/installation/" + state.installationId + "/smartplug/state",
         contentType: "application/json",
         headers: [
-			requestContentType: "application/json",
-        	Cookie: "vid=" + state.sessionCookie
+            requestContentType: "application/json",
+            Cookie: "vid=" + state.sessionCookie
         ],
         body: '[{"deviceLabel":"' + deviceId + '","state":"' + switchState + '"}]'
     ]
-
-    asynchttpPost(handleSmartPlugStateResponse, params, ["device": currentDevice, "state": switchState])	
+    //log.trace "smartPlug: $params"
+    asynchttpPost(handleSmartPlugStateResponse, params, ["device": currentDevice, "state": switchState])    
 }
 
 def handleSmartPlugStateResponse(response, data) {
-	def status = response.getStatus()
-	if (logEnable) log.debug "smartplugHandlerResponse: $status"
-	stateValue = (data["state"] == "True") ? "on" : "off"
-	if (status == 200) data["device"].sendEvent(name: "switch", value: stateValue)		
+    def status = response.getStatus()
+    if (logEnable) log.debug "smartplugHandlerResponse: $status"
+    stateValue = (data["state"] == "True") ? "on" : "off"
+    if (status == 200) data["device"].sendEvent(name: "switch", value: stateValue)        
 }
 
 def childLock(String deviceId) {
     def currentDevice = getChildDevice(deviceId)
-	if (txtEnable) log.info "Lock ${currentDevice}"
+    if (txtEnable) log.info "Lock ${currentDevice}"
     if (logEnable) log.debug "[Verisure] lockDevice.event: childLock: Event from " + deviceId + " with value " + currentDevice.currentValue("lock") + " , session cookie: " + state.sessionCookie
-	
-	def encodedLabel = URLEncoder.encode(deviceId, "UTF-8")
+    
+    def encodedLabel = URLEncoder.encode(deviceId, "UTF-8")
     def params = [
-    	uri: getBaseUrl() + "/installation/" + state.installationId + "/device/" + encodedLabel + "/lock",
+        uri: getBaseUrl() + "/installation/" + state.installationId + "/device/" + encodedLabel + "/lock",
         contentType: "application/json",
         headers: [
-			requestContentType: "application/json",
-        	Cookie: "vid=" + state.sessionCookie
+            requestContentType: "application/json",
+            Cookie: "vid=" + state.sessionCookie
         ],
-		body: '{"code": ' + code + '}'
+        body: '{"code": ' + code + '}'
     ]
-    asynchttpPut(handleLockStateResponse, params, ["device": currentDevice, "state": "locked"])	
+    asynchttpPut(handleLockStateResponse, params, ["device": currentDevice, "state": "locked"])    
 }
 
 def childUnlock(String deviceId) {
     def currentDevice = getChildDevice(deviceId)
-	if (txtEnable) log.info "Unlock ${currentDevice}"
+    if (txtEnable) log.info "Unlock ${currentDevice}"
     if (logEnable) log.debug "[Verisure] unlockDevice.event: childUnlock: Event from " + deviceId + " with value " + currentDevice.currentValue("lock") + " , session cookie: " + state.sessionCookie
 
-	def encodedLabel = URLEncoder.encode(deviceId, "UTF-8")
+    def encodedLabel = URLEncoder.encode(deviceId, "UTF-8")
     def params = [
-    	uri: getBaseUrl() + "/installation/" + state.installationId + "/device/" + encodedLabel + "/unlock",
+        uri: getBaseUrl() + "/installation/" + state.installationId + "/device/" + encodedLabel + "/unlock",
         contentType: "application/json",
         headers: [
-			requestContentType: "application/json",
-        	Cookie: "vid=" + state.sessionCookie
+            requestContentType: "application/json",
+            Cookie: "vid=" + state.sessionCookie
         ],
-		body: '{"code": ' + code + '}'
+        body: '{"code": ' + code + '}'
     ]
-    asynchttpPut(handleLockStateResponse, params, ["device": currentDevice, "state": "unlocked"])	
+    //log.trace "unlock: $params"
+    asynchttpPut(handleLockStateResponse, params, ["device": currentDevice, "state": "unlocked"])    
 }
 
 def handleLockStateResponse(response, data) {
-	def status = response.getStatus()
-	if (logEnable) log.debug "handleLockStateResponse: $status"
-	
-	if (status == 200) {
-		def responseData = response.getJson()
-		if (logEnable) log.debug "handleLockStateResponse: $responseData"
-		// [doorLockStateChangeTransactionId:150668366]
-		data["device"].sendEvent(name: "lock", value: data.state)
-		
-	} else if (status == 400) {
-		// <errorMessage>The requested doorlock state is not possible to apply due to state already set</errorMessage>
-	}
+    def status = response.getStatus()
+    if (logEnable) log.debug "handleLockStateResponse: $status"
+    
+    if (status == 200) {
+        def responseData = response.getJson()
+        if (logEnable) log.debug "handleLockStateResponse: $responseData"
+        // [doorLockStateChangeTransactionId:150668366]
+        data["device"].sendEvent(name: "lock", value: data.state)
+        
+    } else if (status == 400) {
+        // <errorMessage>The requested doorlock state is not possible to apply due to state already set</errorMessage>
+    }
 
 }
 
