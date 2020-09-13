@@ -29,4 +29,4 @@ Shelly Dimmer | On / off, set level (only state change when digital), 2nd button
 ~~Shelly Door/Window~~ | ***Under development (not working)***
 Shelly Duo | On / off, set level + set colour temperature (only state change when digital)
 ~~Shelly H&T~~ | ***Under development (not working)***
-Shelly Plug (S) | On / off
+Shelly Plug (S) | On / off, power meter, authentication
