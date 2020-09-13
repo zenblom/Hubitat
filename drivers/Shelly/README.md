@@ -22,11 +22,11 @@ After this you only create a Virtual device and set device type to **Shelly x**.
 Type | Progress
 --- | ---
 Shelly 1 | On / off
-Shelly 1 Garage | Use a shelly 1 to control Garage Door with contact wired to SW
-Shelly 2.5 | ***Under development (not working)***
-Shelly 2.5 | Use a Shelly 2.5 to locally get Verisure Alarm status from Smart plugs. ***Under development (not working)***
+~~Shelly 1 Garage~~ | Use a shelly 1 to control Garage Door with contact wired to SW
+~~Shelly 2.5~~ | ***Under development (not working)***
+~~Shelly 2.5~~ | Use a Shelly 2.5 to locally get Verisure Alarm status from Smart plugs. ***Under development (not working)***
 Shelly Dimmer | On / off, set level (only state change when digital), 2nd button input will trigger a button push
-Shelly Door/Window | ***Under development (not working)***
+~~Shelly Door/Window~~ | ***Under development (not working)***
 Shelly Duo | On / off, set level + set colour temperature (only state change when digital)
-Shelly H&T | ***Under development (not working)***
+~~Shelly H&T~~ | ***Under development (not working)***
 Shelly Plug (S) | On / off
