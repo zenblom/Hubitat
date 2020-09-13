@@ -6,7 +6,7 @@ Device | Import URL
 Shelly 1 | https://raw.githubusercontent.com/zenblom/Hubitat/master/drivers/Shelly/Shelly_1.groovy
 ~~Shelly 1 Garage~~ | ~~https://raw.githubusercontent.com/zenblom/Hubitat/master/drivers/Shelly/Shelly_1_Garage.groovy~~
 ~~Shelly 2.5~~ | ~~https://raw.githubusercontent.com/zenblom/Hubitat/master/drivers/Shelly/Shelly_2_5.groovy~~
-~~Shelly 2.5~~ | ~~https://raw.githubusercontent.com/zenblom/Hubitat/master/drivers/Shelly/Shelly_2_5_Verisure.groovy~~
+~~Shelly 2.5 Verisure~~ | ~~https://raw.githubusercontent.com/zenblom/Hubitat/master/drivers/Shelly/Shelly_2_5_Verisure.groovy~~
 ~~Shelly Dimmer~~ | ~~https://raw.githubusercontent.com/zenblom/Hubitat/master/drivers/Shelly/Shelly_Dimmer.groovy~~
 ~~Shelly Door/Window~~ | ~~https://raw.githubusercontent.com/zenblom/Hubitat/master/drivers/Shelly/Shelly_Door_Window.groovy~~
 ~~Shelly Duo~~ | ~~https://raw.githubusercontent.com/zenblom/Hubitat/master/drivers/Shelly/Shelly_Duo.groovy~~
@@ -24,7 +24,7 @@ Type | Progress
 Shelly 1 | On / off
 ~~Shelly 1 Garage~~ | Use a shelly 1 to control Garage Door with contact wired to SW
 ~~Shelly 2.5~~ | ***Under development (not working)***
-~~Shelly 2.5~~ | Use a Shelly 2.5 to locally get Verisure Alarm status from Smart plugs. ***Under development (not working)***
+~~Shelly 2.5 Verisure~~ | Use a Shelly 2.5 to locally get Verisure Alarm status from Smart plugs. ***Under development (not working)***
 Shelly Dimmer | On / off, set level (only state change when digital), 2nd button input will trigger a button push
 ~~Shelly Door/Window~~ | ***Under development (not working)***
 Shelly Duo | On / off, set level + set colour temperature (only state change when digital)
