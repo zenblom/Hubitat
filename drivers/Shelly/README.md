@@ -11,7 +11,7 @@ Shelly 1 | https://raw.githubusercontent.com/zenblom/Hubitat/master/drivers/Shel
 ~~Shelly Door/Window~~ | ~~https://raw.githubusercontent.com/zenblom/Hubitat/master/drivers/Shelly/Shelly_Door_Window.groovy~~
 ~~Shelly Duo~~ | ~~https://raw.githubusercontent.com/zenblom/Hubitat/master/drivers/Shelly/Shelly_Duo.groovy~~
 ~~Shelly H&T~~ | ~~https://raw.githubusercontent.com/zenblom/Hubitat/master/drivers/Shelly/Shelly_H_T.groovy~~
-~~Shelly Plug (S)~~ | ~~https://raw.githubusercontent.com/zenblom/Hubitat/master/drivers/Shelly/Shelly_Plug.groovy~~
+Shelly Plug (S) | ~~https://raw.githubusercontent.com/zenblom/Hubitat/master/drivers/Shelly/Shelly_Plug.groovy~~
 
 After this you only create a Virtual device and set device type to **Shelly x**. When this is done you need to configure the device with the actual IP address of the physical Shelly device and press update. This will trigger multiple local REST API calls to the Shelly device and add Hubitat IP & port on the Action URLs so we can get real-time update of the state when changed, either digital or physical.
 
